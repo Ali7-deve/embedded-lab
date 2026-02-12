@@ -11,6 +11,7 @@
 
 // Use static storage so contexts outlive the controller for the life of the app.
 static IrSensorContext g_ir_context;
+static IrSensorContext g_ir_context2;
 static HallSensorContext g_hall_context;
 static CompositeSensorContext g_composite_context;
 static LedIndicatorContext g_led_context;
@@ -29,6 +30,14 @@ void setup()
             false // active LOW = obstacle detected
         );
 
+    // Create second IR sensor
+    ObstacleSensor ir_sensor2 =
+        ir_sensor_gpio_create(
+            &g_ir_context2,
+            14,   // GPIO14
+            false // active LOW = obstacle detected
+        );
+
     // Create KY-003 Hall Effect sensor, detects magnetic fields
     ObstacleSensor hall_sensor =
         hall_sensor_gpio_create(
@@ -37,20 +46,20 @@ void setup()
             false // active LOW = magnetic field detected
         );
 
-    // Combine both sensors: system triggers if EITHER sensor detects something
-    ObstacleSensor sensors[] = {ir_sensor, hall_sensor};
+    // Combine all sensors: system triggers if ANY sensor detects something
+    ObstacleSensor sensors[] = {ir_sensor, ir_sensor2, hall_sensor};
     ObstacleSensor composite_sensor =
         composite_sensor_create(
             &g_composite_context,
             sensors,
-            2 // number of sensors
+            3 // number of sensors
         );
 
     StatusIndicator indicator =
         led_indicator_gpio_create(
             &g_led_context,
-            18,  // Green LED 
-            17,  // Red LED 
+            18,  // Green LED
+            17,  // Red LED
             true // active HIGH LEDs
         );
 
