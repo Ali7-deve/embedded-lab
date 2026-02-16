@@ -22,52 +22,21 @@ static ButtonContext g_button_context;
 static Button g_button;
 static ObstacleController g_controller;
 
+#define SENSOR_COUNT 4
+static ObstacleSensor g_sensors[SENSOR_COUNT];
+
 void setup()
 {
     // Hardware wiring happens once in Arduino's setup(), not in loop().
     // This keeps policy (controller) separate from hardware setup.
 
-    // Create IR sensor (GPIO15) - detects obstacles
-    ObstacleSensor ir_sensor =
-        ir_sensor_gpio_create(
-            &g_ir_context,
-            15,   // GPIO15
-            false // active LOW = obstacle detected
-        );
+    g_sensors[0] = ir_sensor_gpio_create(&g_ir_context, 15, false);
+    g_sensors[1] = ir_sensor_gpio_create(&g_ir_context2, 14, false);
+    g_sensors[2] = hall_sensor_gpio_create(&g_hall_context, 13, false);
+    g_sensors[3] = ultrasonic_sensor_gpio_create(&g_ultrasonic_context, 2, 4, 30.0f);
 
-    // Create second IR sensor
-    ObstacleSensor ir_sensor2 =
-        ir_sensor_gpio_create(
-            &g_ir_context2,
-            14,   // GPIO14
-            false // active LOW = obstacle detected
-        );
-
-    // Create KY-003 Hall Effect sensor, detects magnetic fields
-    ObstacleSensor hall_sensor =
-        hall_sensor_gpio_create(
-            &g_hall_context,
-            13,   // GPIO13
-            false // active LOW = magnetic field detected
-        );
-
-    // Create ultrasonic sensor (HC-SR04), detects obstacles by distance
-    ObstacleSensor ultrasonic_sensor =
-        ultrasonic_sensor_gpio_create(
-            &g_ultrasonic_context,
-            2,    // GPIO2 -> Echo pin
-            4,    // GPIO4 -> Trig pin
-            30.0f // Detection threshold: 30cm (obstacle detected if closer than 30cm)
-        );
-
-    // Combine all sensors: system triggers if ANY sensor detects something
-    ObstacleSensor sensors[] = {ir_sensor, ir_sensor2, hall_sensor, ultrasonic_sensor};
     ObstacleSensor composite_sensor =
-        composite_sensor_create(
-            &g_composite_context,
-            sensors,
-            4 // number of sensors
-        );
+        composite_sensor_create(&g_composite_context, g_sensors, SENSOR_COUNT);
 
     StatusIndicator indicator =
         led_indicator_gpio_create(
@@ -87,13 +56,16 @@ void setup()
 
     g_controller.sensor = composite_sensor;
     g_controller.indicator = indicator;
-    // Clear the cached state so the first loop publishes a status.
     g_controller.has_last_status = false;
+    g_controller.enabled = true;
 }
 
 void loop()
 {
-    // One control step per loop; delay yields to other FreeRTOS tasks.
+    if (g_button.is_pressed != NULL && g_button.is_pressed(g_button.context))
+    {
+        g_controller.enabled = !g_controller.enabled;
+    }
     obstacle_controller_update(&g_controller);
-    delay(50); // 20 Hz update rate
+    delay(50);
 }

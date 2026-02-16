@@ -12,12 +12,10 @@ static bool composite_is_detected(void *context)
     }
 
     // Check all sensors: return true if ANY sensor detects something (OR logic).
-    for (size_t i = 0; i < ctx->sensor_count; i++)
-    {
-        if (ctx->sensors[i].is_detected != NULL)
-        {
-            if (ctx->sensors[i].is_detected(ctx->sensors[i].context))
-            {
+    for (size_t i = 0; i < ctx->sensor_count; i++) {
+        if (ctx->sensors[i].is_detected != NULL) {
+            bool result = ctx->sensors[i].is_detected(ctx->sensors[i].context);
+            if (result) {
                 return true;
             }
         }

@@ -24,17 +24,13 @@ extern "C" {
 typedef struct {
     ObstacleSensor sensor;
     StatusIndicator indicator;
-    // Edge-triggered support:
-    // We store the last published status so we only update outputs on changes.
     SystemStatus last_status;
     bool has_last_status;
+    bool enabled;
 } ObstacleController;
 
-/*
- * Perform one control step.
- * Safe to call repeatedly from main loop.
- */
 void obstacle_controller_update(ObstacleController *controller);
+void obstacle_controller_set_enabled(ObstacleController *controller, bool enabled);
 
 #ifdef __cplusplus
 } // extern "C"

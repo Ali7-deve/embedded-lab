@@ -1,3 +1,4 @@
+//different approaches using regiser level programming(not used in the project)
 #include <Arduino.h>
 #include <stdio.h>
 #include <soc/gpio_reg.h>

@@ -17,11 +17,24 @@ extern "C"
      *   hidden global state. The context must outlive the ObstacleSensor that
      *   points to it (e.g., static or global storage).
      */
+    typedef enum {
+        ULTRASONIC_IDLE,
+        ULTRASONIC_TRIGGERING,
+        ULTRASONIC_WAITING_ECHO_START,
+        ULTRASONIC_MEASURING_ECHO,
+        ULTRASONIC_READY
+    } UltrasonicState;
+
     typedef struct
     {
         int echo_pin;
         int trig_pin;
-        float detection_threshold_cm; // Distance threshold in centimeters
+        float detection_threshold_cm;
+        UltrasonicState state;
+        uint32_t state_start_time;
+        uint32_t last_measurement_time;
+        bool cached_result;
+        uint32_t measurement_interval_ms;
     } UltrasonicSensorContext;
 
     /*

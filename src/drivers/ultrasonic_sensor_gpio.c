@@ -1,87 +1,90 @@
 #include "drivers/ultrasonic_sensor_gpio.h"
-// ESP-IDF GPIO is used because this module is C-only and Arduino GPIO is C++.
 #include "driver/gpio.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include <stddef.h>
+#include <stdint.h>
 
-// Microsecond delay function using FreeRTOS tick
-// Note: This is approximate but sufficient for ultrasonic sensor timing
+#define ULTRASONIC_MEASUREMENT_INTERVAL_MS 100
+#define ULTRASONIC_TRIGGER_PULSE_US 10
+#define ULTRASONIC_MAX_ECHO_TIME_MS 30
+#define ULTRASONIC_DISTANCE_DIVISOR 58.0f
+
 static void delay_microseconds(uint32_t us)
 {
-    // For very short delays, use a simple loop
-    // For ESP32 at 240MHz, approximate calibration
-    volatile uint32_t count = us * 80; // Approximate cycles per microsecond
-    while (count--)
-    {
+    volatile uint32_t count = us * 80;
+    while (count--) {
         __asm__ __volatile__("nop");
     }
 }
 
-// Read GPIO level with proper casting
 static int read_gpio_level(int pin)
 {
     return gpio_get_level((gpio_num_t)pin);
 }
 
-// Set GPIO level with proper casting
 static void set_gpio_level(int pin, int level)
 {
     gpio_set_level((gpio_num_t)pin, level);
 }
 
+static uint32_t get_time_ms(void)
+{
+    return xTaskGetTickCount() * portTICK_PERIOD_MS;
+}
+
 static bool ultrasonic_is_detected(void *context)
 {
     UltrasonicSensorContext *ctx = (UltrasonicSensorContext *)context;
-
-    if (ctx == NULL)
-    {
-        // Fail safe: no context means we can't read the sensor.
+    if (ctx == NULL) {
         return false;
     }
 
-    // Send trigger pulse: HIGH for 10 microseconds
-    set_gpio_level(ctx->trig_pin, 0);
-    delay_microseconds(2);
-    set_gpio_level(ctx->trig_pin, 1);
-    delay_microseconds(10);
-    set_gpio_level(ctx->trig_pin, 0);
+    uint32_t now = get_time_ms();
 
-    // Wait for echo to start (timeout after 30ms)
-    uint32_t timeout = 30000;
-    uint32_t duration = 0;
-
-    // Wait for echo pin to go HIGH
-    while (read_gpio_level(ctx->echo_pin) == 0)
-    {
-        if (--timeout == 0)
-        {
-            return false; // Timeout - no echo received
+    if (ctx->state == ULTRASONIC_READY) {
+        if ((now - ctx->last_measurement_time) >= ctx->measurement_interval_ms) {
+            ctx->state = ULTRASONIC_TRIGGERING;
+            ctx->state_start_time = now;
+            set_gpio_level(ctx->trig_pin, 0);
+            delay_microseconds(2);
+            set_gpio_level(ctx->trig_pin, 1);
+            delay_microseconds(ULTRASONIC_TRIGGER_PULSE_US);
+            set_gpio_level(ctx->trig_pin, 0);
+            ctx->state = ULTRASONIC_WAITING_ECHO_START;
+            ctx->state_start_time = now;
         }
-        delay_microseconds(1);
+        return ctx->cached_result;
     }
 
-    // Measure how long echo pin stays HIGH by counting microseconds
-    // Each iteration of the delay loop approximates 1 microsecond
-    timeout = 30000; // Max 30ms echo (about 5 meters)
-    duration = 0;
-
-    while (read_gpio_level(ctx->echo_pin) == 1)
-    {
-        if (--timeout == 0)
-        {
-            return false; // Timeout - echo too long
+    if (ctx->state == ULTRASONIC_WAITING_ECHO_START) {
+        if (read_gpio_level(ctx->echo_pin) == 1) {
+            ctx->state = ULTRASONIC_MEASURING_ECHO;
+            ctx->state_start_time = now;
+        } else if ((now - ctx->state_start_time) > ULTRASONIC_MAX_ECHO_TIME_MS) {
+            ctx->cached_result = false;
+            ctx->state = ULTRASONIC_READY;
+            ctx->last_measurement_time = now;
         }
-        delay_microseconds(1);
-        duration++;
+        return ctx->cached_result;
     }
 
-    // Calculate distance: time in microseconds / 58 = distance in cm
-    // Speed of sound is approximately 343 m/s = 0.0343 cm/us
-    // Round trip: distance = (time_us * 0.0343) / 2 = time_us / 58.2
-    // Using 58 for simplicity (close enough for obstacle detection)
-    float distance_cm = duration / 58.0f;
+    if (ctx->state == ULTRASONIC_MEASURING_ECHO) {
+        if (read_gpio_level(ctx->echo_pin) == 0) {
+            uint32_t duration_ms = now - ctx->state_start_time;
+            float distance_cm = (duration_ms * 1000.0f) / ULTRASONIC_DISTANCE_DIVISOR;
+            ctx->cached_result = (distance_cm > 0 && distance_cm <= ctx->detection_threshold_cm);
+            ctx->state = ULTRASONIC_READY;
+            ctx->last_measurement_time = now;
+        } else if ((now - ctx->state_start_time) > ULTRASONIC_MAX_ECHO_TIME_MS) {
+            ctx->cached_result = false;
+            ctx->state = ULTRASONIC_READY;
+            ctx->last_measurement_time = now;
+        }
+        return ctx->cached_result;
+    }
 
-    // Return true if obstacle detected within threshold
-    return (distance_cm > 0 && distance_cm <= ctx->detection_threshold_cm);
+    return ctx->cached_result;
 }
 
 ObstacleSensor ultrasonic_sensor_gpio_create(
@@ -103,6 +106,11 @@ ObstacleSensor ultrasonic_sensor_gpio_create(
     context->echo_pin = echo_pin;
     context->trig_pin = trig_pin;
     context->detection_threshold_cm = detection_threshold_cm;
+    context->state = ULTRASONIC_READY;
+    context->state_start_time = 0;
+    context->last_measurement_time = 0;
+    context->cached_result = false;
+    context->measurement_interval_ms = ULTRASONIC_MEASUREMENT_INTERVAL_MS;
 
     // Configure Echo pin as INPUT
     gpio_config_t echo_conf = {
