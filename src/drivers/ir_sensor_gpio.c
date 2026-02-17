@@ -1,5 +1,4 @@
 #include "drivers/ir_sensor_gpio.h"
-// ESP-IDF GPIO is used because this module is C-only and Arduino GPIO is C++.
 #include "driver/gpio.h"
 #include <stddef.h>
 
@@ -8,12 +7,10 @@ static bool ir_is_detected(void *context)
     IrSensorContext *ctx = (IrSensorContext *)context;
 
     if (ctx == NULL) {
-        // Fail safe: no context means we can't read the pin.
         return false;
     }
 
     int level = gpio_get_level(ctx->gpio_pin);
-
     return (level != 0) == ctx->active_level;
 }
 

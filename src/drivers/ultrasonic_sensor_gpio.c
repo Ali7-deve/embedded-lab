@@ -2,6 +2,7 @@
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "utils/profiler.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -13,7 +14,8 @@
 static void delay_microseconds(uint32_t us)
 {
     volatile uint32_t count = us * 80;
-    while (count--) {
+    while (count--)
+    {
         __asm__ __volatile__("nop");
     }
 }
@@ -35,15 +37,21 @@ static uint32_t get_time_ms(void)
 
 static bool ultrasonic_is_detected(void *context)
 {
+    profiler_start(PROFILER_ULTRASONIC_SENSOR);
+
     UltrasonicSensorContext *ctx = (UltrasonicSensorContext *)context;
-    if (ctx == NULL) {
+    if (ctx == NULL)
+    {
+        profiler_stop(PROFILER_ULTRASONIC_SENSOR);
         return false;
     }
 
     uint32_t now = get_time_ms();
 
-    if (ctx->state == ULTRASONIC_READY) {
-        if ((now - ctx->last_measurement_time) >= ctx->measurement_interval_ms) {
+    if (ctx->state == ULTRASONIC_READY)
+    {
+        if ((now - ctx->last_measurement_time) >= ctx->measurement_interval_ms)
+        {
             ctx->state = ULTRASONIC_TRIGGERING;
             ctx->state_start_time = now;
             set_gpio_level(ctx->trig_pin, 0);
@@ -57,11 +65,15 @@ static bool ultrasonic_is_detected(void *context)
         return ctx->cached_result;
     }
 
-    if (ctx->state == ULTRASONIC_WAITING_ECHO_START) {
-        if (read_gpio_level(ctx->echo_pin) == 1) {
+    if (ctx->state == ULTRASONIC_WAITING_ECHO_START)
+    {
+        if (read_gpio_level(ctx->echo_pin) == 1)
+        {
             ctx->state = ULTRASONIC_MEASURING_ECHO;
             ctx->state_start_time = now;
-        } else if ((now - ctx->state_start_time) > ULTRASONIC_MAX_ECHO_TIME_MS) {
+        }
+        else if ((now - ctx->state_start_time) > ULTRASONIC_MAX_ECHO_TIME_MS)
+        {
             ctx->cached_result = false;
             ctx->state = ULTRASONIC_READY;
             ctx->last_measurement_time = now;
@@ -69,21 +81,27 @@ static bool ultrasonic_is_detected(void *context)
         return ctx->cached_result;
     }
 
-    if (ctx->state == ULTRASONIC_MEASURING_ECHO) {
-        if (read_gpio_level(ctx->echo_pin) == 0) {
+    if (ctx->state == ULTRASONIC_MEASURING_ECHO)
+    {
+        if (read_gpio_level(ctx->echo_pin) == 0)
+        {
             uint32_t duration_ms = now - ctx->state_start_time;
             float distance_cm = (duration_ms * 1000.0f) / ULTRASONIC_DISTANCE_DIVISOR;
             ctx->cached_result = (distance_cm > 0 && distance_cm <= ctx->detection_threshold_cm);
             ctx->state = ULTRASONIC_READY;
             ctx->last_measurement_time = now;
-        } else if ((now - ctx->state_start_time) > ULTRASONIC_MAX_ECHO_TIME_MS) {
+        }
+        else if ((now - ctx->state_start_time) > ULTRASONIC_MAX_ECHO_TIME_MS)
+        {
             ctx->cached_result = false;
             ctx->state = ULTRASONIC_READY;
             ctx->last_measurement_time = now;
         }
+        profiler_stop(PROFILER_ULTRASONIC_SENSOR);
         return ctx->cached_result;
     }
 
+    profiler_stop(PROFILER_ULTRASONIC_SENSOR);
     return ctx->cached_result;
 }
 

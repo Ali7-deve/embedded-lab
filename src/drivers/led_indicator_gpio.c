@@ -1,11 +1,11 @@
-// drivers/led_indicator_gpio.c
 #include "drivers/led_indicator_gpio.h"
-// ESP-IDF GPIO is used because this module is C-only and Arduino GPIO is C++.
 #include "driver/gpio.h"
+#include "utils/profiler.h"
 #include <stddef.h>
 
 static void led_set_status(void *context, SystemStatus status)
 {
+    profiler_start(PROFILER_LED_INDICATOR);
     LedIndicatorContext *ctx = (LedIndicatorContext *)context;
 
     if (ctx == NULL) {
@@ -23,6 +23,8 @@ static void led_set_status(void *context, SystemStatus status)
 
     gpio_set_level(ctx->green_gpio, green_level);
     gpio_set_level(ctx->red_gpio, red_level);
+    
+    profiler_stop(PROFILER_LED_INDICATOR);
 }
 
 StatusIndicator led_indicator_gpio_create(
