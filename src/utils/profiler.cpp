@@ -1,5 +1,5 @@
+#include <Arduino.h>
 #include "utils/profiler.h"
-#include "Arduino.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>

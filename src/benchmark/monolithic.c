@@ -1,10 +1,11 @@
+#include <stdint.h>
+#include <inttypes.h>
 #include "benchmark/monolithic.h"
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "utils/profiler.h"
 #include <stddef.h>
-#include <stdint.h>
 
 #define ULTRASONIC_MEASUREMENT_INTERVAL_MS 100
 #define ULTRASONIC_MAX_ECHO_TIME_MS 30

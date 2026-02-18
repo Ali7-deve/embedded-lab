@@ -1,6 +1,6 @@
 // drivers/composite_sensor.h
 #pragma once
-
+#include <stddef.h>
 #include "interfaces/obstacle_sensor.h"
 
 #ifdef __cplusplus

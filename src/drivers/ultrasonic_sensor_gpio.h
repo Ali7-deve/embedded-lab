@@ -1,9 +1,9 @@
 // drivers/ultrasonic_sensor_gpio.h
 #pragma once
 
+#include <stdint.h>
 #include "interfaces/obstacle_sensor.h"
 #include <stdbool.h>
-
 #ifdef __cplusplus
 extern "C"
 {

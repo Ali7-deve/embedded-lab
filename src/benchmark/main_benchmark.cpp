@@ -1,5 +1,6 @@
 #include <Arduino.h>
-
+#include <stdint.h>
+#include <inttypes.h>
 #include "app/obstacle_controller.h"
 #include "drivers/ir_sensor_gpio.h"
 #include "drivers/hall_sensor_gpio.h"
